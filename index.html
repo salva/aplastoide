@@ -122,13 +122,13 @@
       <label>
         Level lines per axis
         <span id="levelValue" class="value"></span>
-        <input id="levelSlider" type="range" min="0" max="21" step="1" value="7" />
+        <input id="levelSlider" type="range" min="0" max="21" step="1" value="0" />
       </label>
 
       <label>
         Sampling resolution
         <span id="resolutionValue" class="value"></span>
-        <input id="resolutionSlider" type="range" min="28" max="88" step="4" value="56" />
+        <input id="resolutionSlider" type="range" min="28" max="200" step="4" value="56" />
       </label>
 
       <p class="hint">Drag to rotate. Scroll or pinch to zoom. Level lines are contours on planes where x, y, or z is fixed.</p>
@@ -371,7 +371,7 @@
         const a = Number(aSlider.value);
         const levelCount = Number(levelSlider.value);
         const resolution = Number(resolutionSlider.value);
-        const lineResolution = Math.max(36, Math.min(96, resolution + 8));
+        const lineResolution = Math.max(36, Math.min(208, resolution + 8));
 
         aValue.textContent = `${a.toFixed(2)} / ${A_MAX.toFixed(2)}`;
         levelValue.textContent = `${levelCount}`;
