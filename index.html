@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implicit Surface: x² + y² + z² = cos²(aπxyz)</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        background: #05070d;
+        color: #eef3ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 20% 10%, rgba(75, 124, 255, 0.2), transparent 32rem),
+          radial-gradient(circle at 90% 80%, rgba(255, 68, 193, 0.16), transparent 28rem),
+          #05070d;
+      }
+
+      #scene {
+        position: fixed;
+        inset: 0;
+      }
+
+      .panel {
+        position: fixed;
+        top: 1rem;
+        left: 1rem;
+        width: min(24rem, calc(100vw - 2rem));
+        padding: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 1rem;
+        background: rgba(7, 10, 18, 0.78);
+        box-shadow: 0 1rem 4rem rgba(0, 0, 0, 0.38);
+        backdrop-filter: blur(18px);
+      }
+
+      h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1rem;
+        line-height: 1.25;
+      }
+
+      .equation {
+        margin: 0 0 1rem;
+        color: #aeb9d4;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.8rem;
+      }
+
+      label {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.4rem 0.75rem;
+        align-items: center;
+        margin-top: 0.85rem;
+        color: #dce5ff;
+        font-size: 0.9rem;
+      }
+
+      input[type="range"] {
+        grid-column: 1 / -1;
+        width: 100%;
+        accent-color: #77a1ff;
+      }
+
+      .value {
+        color: #8fb2ff;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .hint,
+      #stats {
+        margin: 0.9rem 0 0;
+        color: #9aa7c3;
+        font-size: 0.78rem;
+        line-height: 1.4;
+      }
+
+      #stats {
+        color: #b8c5e4;
+      }
+
+      @media (max-width: 700px) {
+        body {
+          overflow: hidden;
+        }
+
+        .panel {
+          top: auto;
+          bottom: 0.75rem;
+          max-height: 48vh;
+          overflow: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main id="scene" aria-label="Interactive 3D implicit surface"></main>
+
+    <section class="panel" aria-label="Controls">
+      <h1>Implicit Surface Explorer</h1>
+      <p class="equation">x² + y² + z² = cos²(a · π · x · y · z)</p>
+
+      <label>
+        Parameter a
+        <span id="aValue" class="value"></span>
+        <input id="aSlider" type="range" min="0" max="5.196152423" step="0.01" value="2.2" />
+      </label>
+
+      <label>
+        Level lines per axis
+        <span id="levelValue" class="value"></span>
+        <input id="levelSlider" type="range" min="0" max="21" step="1" value="7" />
+      </label>
+
+      <label>
+        Sampling resolution
+        <span id="resolutionValue" class="value"></span>
+        <input id="resolutionSlider" type="range" min="28" max="88" step="4" value="56" />
+      </label>
+
+      <p class="hint">Drag to rotate. Scroll or pinch to zoom. Level lines are contours on planes where x, y, or z is fixed.</p>
+      <p id="stats"></p>
+    </section>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.166.1/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+      const SQRT_27 = Math.sqrt(27);
+      const DOMAIN_MIN = -1;
+      const DOMAIN_MAX = 1;
+      const EDGE_CONNECTIONS = [
+        [0, 1],
+        [1, 3],
+        [3, 2],
+        [2, 0],
+      ];
+
+      const sceneHost = document.querySelector("#scene");
+      const aSlider = document.querySelector("#aSlider");
+      const levelSlider = document.querySelector("#levelSlider");
+      const resolutionSlider = document.querySelector("#resolutionSlider");
+      const aValue = document.querySelector("#aValue");
+      const levelValue = document.querySelector("#levelValue");
+      const resolutionValue = document.querySelector("#resolutionValue");
+      const stats = document.querySelector("#stats");
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      sceneHost.appendChild(renderer.domElement);
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
+      camera.position.set(2.7, 2.25, 2.15);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.06;
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+      const light = new THREE.DirectionalLight(0xffffff, 1.2);
+      light.position.set(3, 5, 4);
+      scene.add(light);
+
+      const grid = new THREE.GridHelper(2.4, 12, 0x2f3a56, 0x1b2235);
+      grid.position.y = -1.08;
+      scene.add(grid);
+
+      const axes = new THREE.AxesHelper(1.35);
+      scene.add(axes);
+
+      const surfaceMaterial = new THREE.PointsMaterial({
+        color: 0x89ddff,
+        size: 0.012,
+        transparent: true,
+        opacity: 0.68,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+
+      const lineMaterials = {
+        x: new THREE.LineBasicMaterial({ color: 0xff6fb1, transparent: true, opacity: 0.95 }),
+        y: new THREE.LineBasicMaterial({ color: 0x84f5a4, transparent: true, opacity: 0.95 }),
+        z: new THREE.LineBasicMaterial({ color: 0xffd36f, transparent: true, opacity: 0.95 }),
+      };
+
+      let surfaceObject = null;
+      let lineGroup = new THREE.Group();
+      scene.add(lineGroup);
+      let renderTimer = null;
+
+      function implicitValue(x, y, z, a) {
+        const left = x * x + y * y + z * z;
+        const c = Math.cos(a * Math.PI * x * y * z);
+        return left - c * c;
+      }
+
+      function lerp(a, b, t) {
+        return a + (b - a) * t;
+      }
+
+      function zeroPoint(p1, p2, v1, v2) {
+        const denom = v1 - v2;
+        const t = Math.abs(denom) < 1e-9 ? 0.5 : THREE.MathUtils.clamp(v1 / denom, 0, 1);
+        return [lerp(p1[0], p2[0], t), lerp(p1[1], p2[1], t), lerp(p1[2], p2[2], t)];
+      }
+
+      function makeSurface(a, resolution) {
+        const points = [];
+        const step = (DOMAIN_MAX - DOMAIN_MIN) / resolution;
+
+        for (let ix = 0; ix < resolution; ix += 1) {
+          const x0 = DOMAIN_MIN + ix * step;
+          const x1 = x0 + step;
+          for (let iy = 0; iy < resolution; iy += 1) {
+            const y0 = DOMAIN_MIN + iy * step;
+            const y1 = y0 + step;
+            for (let iz = 0; iz < resolution; iz += 1) {
+              const z0 = DOMAIN_MIN + iz * step;
+              const z1 = z0 + step;
+              const corners = [
+                [x0, y0, z0],
+                [x1, y0, z0],
+                [x0, y1, z0],
+                [x1, y1, z0],
+                [x0, y0, z1],
+                [x1, y0, z1],
+                [x0, y1, z1],
+                [x1, y1, z1],
+              ];
+              const values = corners.map(([x, y, z]) => implicitValue(x, y, z, a));
+              const min = Math.min(...values);
+              const max = Math.max(...values);
+
+              if (min <= 0 && max >= 0) {
+                const crossingEdges = [
+                  [0, 1],
+                  [0, 2],
+                  [1, 3],
+                  [2, 3],
+                  [4, 5],
+                  [4, 6],
+                  [5, 7],
+                  [6, 7],
+                  [0, 4],
+                  [1, 5],
+                  [2, 6],
+                  [3, 7],
+                ];
+
+                for (const [aIndex, bIndex] of crossingEdges) {
+                  const va = values[aIndex];
+                  const vb = values[bIndex];
+                  if ((va <= 0 && vb >= 0) || (va >= 0 && vb <= 0)) {
+                    points.push(...zeroPoint(corners[aIndex], corners[bIndex], va, vb));
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
+        return { object: new THREE.Points(geometry, surfaceMaterial), count: points.length / 3 };
+      }
+
+      function planePoint(axis, fixed, u, v) {
+        if (axis === "x") return [fixed, u, v];
+        if (axis === "y") return [u, fixed, v];
+        return [u, v, fixed];
+      }
+
+      function contourSegmentsForPlane(axis, fixed, a, resolution) {
+        const segments = [];
+        const step = (DOMAIN_MAX - DOMAIN_MIN) / resolution;
+
+        for (let iu = 0; iu < resolution; iu += 1) {
+          const u0 = DOMAIN_MIN + iu * step;
+          const u1 = u0 + step;
+          for (let iv = 0; iv < resolution; iv += 1) {
+            const v0 = DOMAIN_MIN + iv * step;
+            const v1 = v0 + step;
+            const cell = [
+              planePoint(axis, fixed, u0, v0),
+              planePoint(axis, fixed, u1, v0),
+              planePoint(axis, fixed, u0, v1),
+              planePoint(axis, fixed, u1, v1),
+            ];
+            const values = cell.map(([x, y, z]) => implicitValue(x, y, z, a));
+            const crossings = [];
+
+            for (const [from, to] of EDGE_CONNECTIONS) {
+              const va = values[from];
+              const vb = values[to];
+              if ((va <= 0 && vb >= 0) || (va >= 0 && vb <= 0)) {
+                crossings.push(zeroPoint(cell[from], cell[to], va, vb));
+              }
+            }
+
+            if (crossings.length === 2) {
+              segments.push(...crossings[0], ...crossings[1]);
+            } else if (crossings.length === 4) {
+              segments.push(...crossings[0], ...crossings[1], ...crossings[2], ...crossings[3]);
+            }
+          }
+        }
+
+        return segments;
+      }
+
+      function fixedValues(count) {
+        if (count <= 0) return [];
+        if (count === 1) return [0];
+        return Array.from({ length: count }, (_, index) => {
+          const t = index / (count - 1);
+          return THREE.MathUtils.lerp(-0.95, 0.95, t);
+        });
+      }
+
+      function makeLevelLines(a, count, resolution) {
+        const group = new THREE.Group();
+        const values = fixedValues(count);
+        let segmentCount = 0;
+
+        for (const axis of ["x", "y", "z"]) {
+          const positions = [];
+          for (const fixed of values) {
+            positions.push(...contourSegmentsForPlane(axis, fixed, a, resolution));
+          }
+
+          segmentCount += positions.length / 6;
+          const geometry = new THREE.BufferGeometry();
+          geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+          group.add(new THREE.LineSegments(geometry, lineMaterials[axis]));
+        }
+
+        return { group, segmentCount };
+      }
+
+      function disposeObject(object) {
+        object.traverse((child) => {
+          if (child.geometry) child.geometry.dispose();
+        });
+      }
+
+      function rebuild() {
+        const a = Number(aSlider.value);
+        const levelCount = Number(levelSlider.value);
+        const resolution = Number(resolutionSlider.value);
+        const lineResolution = Math.max(36, Math.min(96, resolution + 8));
+
+        aValue.textContent = `${a.toFixed(2)} / ${SQRT_27.toFixed(3)}`;
+        levelValue.textContent = `${levelCount}`;
+        resolutionValue.textContent = `${resolution}`;
+        stats.textContent = "Sampling...";
+
+        if (surfaceObject) {
+          scene.remove(surfaceObject);
+          surfaceObject.geometry.dispose();
+        }
+        scene.remove(lineGroup);
+        disposeObject(lineGroup);
+
+        const surface = makeSurface(a, resolution);
+        surfaceObject = surface.object;
+        scene.add(surfaceObject);
+
+        const lines = makeLevelLines(a, levelCount, lineResolution);
+        lineGroup = lines.group;
+        scene.add(lineGroup);
+
+        stats.textContent = `${surface.count.toLocaleString()} surface samples; ${lines.segmentCount.toLocaleString()} contour segments.`;
+      }
+
+      function scheduleRebuild() {
+        window.clearTimeout(renderTimer);
+        renderTimer = window.setTimeout(rebuild, 90);
+      }
+
+      for (const input of [aSlider, levelSlider, resolutionSlider]) {
+        input.addEventListener("input", scheduleRebuild);
+      }
+
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      function animate() {
+        controls.update();
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+      }
+
+      rebuild();
+      animate();
+    </script>
+  </body>
+</html>
