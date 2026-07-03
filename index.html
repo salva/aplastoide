@@ -116,7 +116,7 @@
       <label>
         Parameter a
         <span id="aValue" class="value"></span>
-        <input id="aSlider" type="range" min="0" max="5.196152423" step="0.01" value="2.2" />
+        <input id="aSlider" type="range" min="0" max="12" step="0.01" value="2.2" />
       </label>
 
       <label>
@@ -148,7 +148,7 @@
       import * as THREE from "three";
       import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-      const SQRT_27 = Math.sqrt(27);
+      const A_MAX = 12;
       const DOMAIN_MIN = -1;
       const DOMAIN_MAX = 1;
       const EDGE_CONNECTIONS = [
@@ -373,7 +373,7 @@
         const resolution = Number(resolutionSlider.value);
         const lineResolution = Math.max(36, Math.min(96, resolution + 8));
 
-        aValue.textContent = `${a.toFixed(2)} / ${SQRT_27.toFixed(3)}`;
+        aValue.textContent = `${a.toFixed(2)} / ${A_MAX.toFixed(2)}`;
         levelValue.textContent = `${levelCount}`;
         resolutionValue.textContent = `${resolution}`;
         stats.textContent = "Sampling...";

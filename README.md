@@ -41,13 +41,7 @@ The parameter `a` is user-controlled with a slider.
 Range:
 
 ```text
-0 <= a <= sqrt(27)
-```
-
-Numerically:
-
-```text
-0 <= a <= 5.196152423...
+0 <= a <= 12
 ```
 
 ### Interaction
@@ -225,7 +219,7 @@ The main implicit object is drawn as a cyan point cloud.
 - Render the main object as a sampled point cloud.
 - Overlay fixed-`x`, fixed-`y`, and fixed-`z` level lines.
 - Use one shared level-line-count slider for all three axes.
-- Allow `a` to vary over `0 <= a <= sqrt(27)`.
+- Allow `a` to vary over `0 <= a <= 12`.
 - Allow sampling resolution to be adjusted.
 
 ### Near-Term Improvements
